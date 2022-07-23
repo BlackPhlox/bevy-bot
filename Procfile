@@ -1,1 +1,1 @@
-web: ./target/release/bevy-bot
+worker: ./target/release/bevy-bot
