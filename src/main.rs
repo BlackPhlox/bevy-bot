@@ -72,7 +72,7 @@ async fn main() {
     let env_file = dotenv::dotenv();
     match env_file {
         Ok(_) => println!(".env found, setting environment variables"),
-        Err(x) => println!("No .env file found: {}", x),
+        Err(x) => println!("No .env file found: {:?}", x),
     }
 
     // Initialize the logger to use environment variables.
