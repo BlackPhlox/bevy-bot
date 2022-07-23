@@ -1,6 +1,6 @@
 # Bevy Bot
 
-The sources files for bevy discord bot which is deployed on the [bevy discord](https://discord.gg/bevy).
+The sources files for the (currently unofficial) bevy discord bot which is planned to be deployed on the [bevy discord](https://discord.gg/bevy).
 
 Based on [Example 6 from serenity](https://github.com/serenity-rs/serenity/tree/current/examples/e06_sample_bot_structure).
 
