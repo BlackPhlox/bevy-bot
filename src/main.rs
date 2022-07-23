@@ -69,7 +69,11 @@ struct General;
 async fn main() {
     // This will load the environment variables located at `./.env`, relative to
     // the CWD. See `./.env.example` for an example on how to structure this.
-    dotenv::dotenv().expect("Failed to load .env file");
+    let env_file = dotenv::dotenv();
+    match env_file {
+        Ok(_) => println!(".env found, setting environment variables"),
+        Err(x) => println!("No .env file found: {}", x)
+    }
 
     // Initialize the logger to use environment variables.
     //
