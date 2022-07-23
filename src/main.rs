@@ -78,9 +78,9 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let dc_token = env::var("DISCORD_TOKEN").expect("Expected a discord token in the environment");
-    let db_endpoint =
+    let _db_endpoint =
         env::var("DATABASE_ENDPOINT").expect("Expected a database endpoint in the environment");
-    let gh_token =
+    let _gh_token =
         env::var("DATABASE_ENDPOINT").expect("Expected a github token in the environment");
 
     let http = Http::new(&dc_token);
