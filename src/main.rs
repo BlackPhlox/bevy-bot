@@ -17,13 +17,19 @@ use std::sync::Arc;
 use serenity::async_trait;
 use serenity::client::bridge::gateway::ShardManager;
 use serenity::framework::standard::macros::group;
+use serenity::framework::standard::Args;
+use serenity::framework::standard::Delimiter;
 use serenity::framework::StandardFramework;
 use serenity::http::Http;
+use serenity::model::channel::MessageType;
 use serenity::model::event::ResumedEvent;
 use serenity::model::gateway::Ready;
+use serenity::model::prelude::Message;
 use serenity::prelude::*;
 use tracing::{error, info};
 
+use crate::commands::hello::*;
+use crate::commands::link::*;
 use crate::commands::math::*;
 use crate::commands::meta::*;
 use crate::commands::owner::*;
@@ -42,13 +48,21 @@ impl EventHandler for Handler {
         info!("Connected as {}", ready.user.name);
     }
 
+    async fn message(&self, context: Context, msg: Message) {
+        if !msg.author.bot && msg.kind.eq(&MessageType::Regular) {
+            //info!("Someone messaged");
+            //info!("{:?}", msg);
+            let _ = link(&context, &msg, Args::new("", &[Delimiter::Single(';')])).await;
+        }
+    }
+
     async fn resume(&self, _: Context, _: ResumedEvent) {
         info!("Resumed");
     }
 }
 
 #[group]
-#[commands(multiply, ping, quit)]
+#[commands(ping, hello, multiply, quit)]
 struct General;
 
 #[tokio::main]
@@ -63,9 +77,13 @@ async fn main() {
     // `RUST_LOG` to `debug`.
     tracing_subscriber::fmt::init();
 
-    let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
+    let dc_token = env::var("DISCORD_TOKEN").expect("Expected a discord token in the environment");
+    let db_endpoint =
+        env::var("DATABASE_ENDPOINT").expect("Expected a database endpoint in the environment");
+    let gh_token =
+        env::var("DATABASE_ENDPOINT").expect("Expected a github token in the environment");
 
-    let http = Http::new(&token);
+    let http = Http::new(&dc_token);
 
     // We will fetch your bot's owners and id
     let (owners, _bot_id) = match http.get_current_application_info().await {
@@ -74,18 +92,19 @@ async fn main() {
             owners.insert(info.owner.id);
 
             (owners, info.id)
-        },
+        }
         Err(why) => panic!("Could not access application info: {:?}", why),
     };
 
     // Create the framework
-    let framework =
-        StandardFramework::new().configure(|c| c.owners(owners).prefix("~")).group(&GENERAL_GROUP);
+    let framework = StandardFramework::new()
+        .configure(|c| c.owners(owners).prefix("~"))
+        .group(&GENERAL_GROUP);
 
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
-    let mut client = Client::builder(&token, intents)
+    let mut client = Client::builder(&dc_token, intents)
         .framework(framework)
         .event_handler(Handler)
         .await
@@ -99,7 +118,9 @@ async fn main() {
     let shard_manager = client.shard_manager.clone();
 
     tokio::spawn(async move {
-        tokio::signal::ctrl_c().await.expect("Could not register ctrl+c handler");
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Could not register ctrl+c handler");
         shard_manager.lock().await.shutdown_all().await;
     });
 
