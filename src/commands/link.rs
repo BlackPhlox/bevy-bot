@@ -43,7 +43,7 @@ pub async fn link(ctx: &Context, msg: &Message) -> CommandResult {
 
     let res = match_link_code_storage(&msg.content);
     let lcs = match res {
-        Some(x) => match x {
+        Some(ref x) => match x {
             CodeLinkType::GitHub => "GH",
             CodeLinkType::GitHubGist => "GHG",
             CodeLinkType::GitLab => "GL",
@@ -52,9 +52,11 @@ pub async fn link(ctx: &Context, msg: &Message) -> CommandResult {
         None => "",
     };
 
-    msg.channel_id
-        .say(&ctx.http, format!("Bonjour {}", lcs))
-        .await?;
+    if res.is_some() {
+        msg.channel_id
+            .say(&ctx.http, format!("Bonjour {}", lcs))
+            .await?;
+    }
 
     Ok(())
 }
