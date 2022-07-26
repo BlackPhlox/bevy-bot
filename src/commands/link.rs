@@ -37,6 +37,52 @@ fn match_link_code_storage(text: &str) -> Option<CodeLinkType> {
     }
 }
 
+#[derive(PartialEq, Eq, Debug)]
+pub enum IssueLinkType {
+    Issue(u64),
+    PullRequest(u64),
+}
+
+fn match_link_issue_or_pr(text: &str) -> Option<IssueLinkType> {
+    lazy_static! {
+        // From https://github.com/laundmo/gh-linker-bot/blob/main/gh_linker/cogs/code_snippets.py
+        // TODO: Find out what multiline compile means
+        static ref GH_ISSUE_RE: Regex = Regex::new(r#"((?P<Username>\w+)*/)?(?P<IsUser>@)?(?P<Repo>[^\s]+)#(?P<Id>\d*)"#).unwrap();
+    }
+
+    let mut a = GH_ISSUE_RE.captures_iter(text);
+    
+    let k = a.by_ref().count();
+    info!("Captured Matches: {:?}", k);
+
+    for b in a {
+        for c in b.iter(){
+            info!("{:?}", c);
+        }
+        
+        /*
+        info!("Username {:?}", &b["Username"]);
+        info!("IsUser {:?}", &b["IsUser"]);
+        info!("Repo {:?}", &b["Repo"]);
+        info!("Id {:?}", &b["Id"]);
+        */
+    }
+
+    if GH_ISSUE_RE.is_match(text)
+    {
+        Some(IssueLinkType::Issue(12))
+    } else {
+        None
+    }
+}
+
+
+#[test]
+fn feature() {
+    let a = match_link_issue_or_pr("bevy#123");
+    assert_eq!(a.expect("Not Found"), IssueLinkType::Issue(12));
+}
+
 #[command]
 pub async fn link(ctx: &Context, msg: &Message) -> CommandResult {
     info!("Checking for link regex!");
@@ -51,6 +97,14 @@ pub async fn link(ctx: &Context, msg: &Message) -> CommandResult {
         },
         None => "",
     };
+
+
+    let res1 = match_link_issue_or_pr(&msg.content);
+    match res1 {
+        Some(IssueLinkType::Issue(x)) => info!("Found an issue {}", x),
+        Some(IssueLinkType::PullRequest(x)) => info!("Found a pull-request {}", x),
+        None => ()
+    }
 
     if res.is_some() {
         msg.channel_id
