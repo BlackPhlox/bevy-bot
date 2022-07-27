@@ -49,7 +49,15 @@ fn parse_gh_link() {
 pub struct Issue {
     id: u64,
     repo: Repo,
-    is_pr: bool,
+    author: String,
+    issue_type: IssueType,
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub enum IssueType{
+    Issue,
+    PR,
+    Discussion,
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -89,7 +97,8 @@ fn parse_issue_link(text: &str) -> Option<Issue> {
         Some(Issue {
             id: 123,
             repo: Repo::Bevy,
-            is_pr: true,
+            author: "cart".to_string(),
+            issue_type: IssueType::Issue,
         })
     } else {
         None
@@ -104,7 +113,8 @@ fn parse_bevy_issue() {
         Issue {
             id: 123,
             repo: Repo::Bevy,
-            is_pr: true
+            author: "cart".to_string(),
+            issue_type: IssueType::Issue
         }
     );
 }
@@ -117,7 +127,8 @@ fn parse_bevy_web_issue() {
         Issue {
             id: 123,
             repo: Repo::BevyWeb,
-            is_pr: true
+            author: "cart".to_string(),
+            issue_type: IssueType::Issue
         }
     );
 }
@@ -130,7 +141,8 @@ fn parse_bevy_bot_issue() {
         Issue {
             id: 123,
             repo: Repo::BevyBot,
-            is_pr: true
+            author: "cart".to_string(),
+            issue_type: IssueType::Issue
         }
     );
 }
@@ -155,13 +167,21 @@ pub async fn link(ctx: &Context, msg: &Message) -> CommandResult {
         Some(Issue {
             id,
             repo,
-            is_pr: false,
-        }) => info!("Found an issue {} {:#?}", id, repo),
+            author,
+            issue_type: IssueType::Issue,
+        }) => info!("Found an issue {} in {:#?} by {}", id, repo, author),
         Some(Issue {
             id,
             repo,
-            is_pr: true,
-        }) => info!("Found a pull-request {} {:#?}", id, repo),
+            author,
+            issue_type: IssueType::PR,
+        }) => info!("Found a pull-request {} in {:#?} by {}", id, repo, author),
+        Some(Issue {
+            id,
+            repo,
+            author,
+            issue_type: IssueType::Discussion,
+        }) => info!("Found a Discussion {} in {:#?} by {}", id, repo, author),
         None => (),
     }
 
