@@ -54,7 +54,7 @@ pub struct Issue {
 }
 
 #[derive(PartialEq, Eq, Debug)]
-pub enum IssueType{
+pub enum IssueType {
     Issue,
     PR,
     Discussion,
@@ -75,31 +75,38 @@ fn parse_issue_link(text: &str) -> Option<Issue> {
         static ref GH_ISSUE_RE: Regex = Regex::new(r#"((?P<Username>\w+)*/)?(?P<IsUser>@)?(?P<Repo>[^\s]+)#(?P<Id>\d*)"#).unwrap();
     }
 
-    let mut a = GH_ISSUE_RE.captures_iter(text);
+    let captures = GH_ISSUE_RE.captures(text);
+    println!("Captured Test: {:?}", captures);
 
-    let k = a.by_ref().count();
-    info!("Captured Matches: {:?}", k);
+    if let Some(x) = captures {
+        let id = &x.name("Id");
+        let repo = &x.name("Repo");
+        let username = &x.name("Username");
+        let isUser = &x.name("IsUser");
 
-    for b in a {
-        for c in b.iter() {
-            info!("{:?}", c);
+        if let (Some(_id), Some(_repo)) = (id, repo) {
+            let r: Repo = match _repo.as_str() {
+                "bevy" | "b" => Repo::Bevy,
+                "bevy-website" | "website" | "web" => Repo::BevyWeb,
+                "bevy-bot" | "bot" => Repo::BevyBot,
+                _ =>
+                //Github lookup first, if exist some else none
+                {
+                    Repo::Other(Some(_repo.as_str().to_string()))
+                }
+            };
+
+            //Call github repo api
+            Some(Issue {
+                id: _id.as_str().to_string().parse::<u64>().expect("Invalid id"),
+                repo: r,
+                //From github
+                author: "cart".to_string(),
+                issue_type: IssueType::Issue,
+            })
+        } else {
+            None
         }
-
-        /*
-        info!("Username {:?}", &b["Username"]);
-        info!("IsUser {:?}", &b["IsUser"]);
-        info!("Repo {:?}", &b["Repo"]);
-        info!("Id {:?}", &b["Id"]);
-        */
-    }
-
-    if GH_ISSUE_RE.is_match(text) {
-        Some(Issue {
-            id: 123,
-            repo: Repo::Bevy,
-            author: "cart".to_string(),
-            issue_type: IssueType::Issue,
-        })
     } else {
         None
     }
@@ -114,6 +121,20 @@ fn parse_bevy_issue() {
             id: 123,
             repo: Repo::Bevy,
             author: "cart".to_string(),
+            issue_type: IssueType::Issue
+        }
+    );
+}
+
+#[test]
+fn parse_issue_fallback() {
+    let a = parse_issue_link("BlackPhlox/bevy_config_cam#1");
+    assert_eq!(
+        a.expect("Not Found"),
+        Issue {
+            id: 1,
+            repo: Repo::Other(Some("bevy_config_cam".to_string())),
+            author: "BlackPhlox".to_string(),
             issue_type: IssueType::Issue
         }
     );
@@ -135,6 +156,34 @@ fn parse_bevy_web_issue() {
 
 #[test]
 fn parse_bevy_bot_issue() {
+    let a = parse_issue_link("bot#9");
+    assert_eq!(
+        a.expect("Not Found"),
+        Issue {
+            id: 9,
+            repo: Repo::BevyBot,
+            author: "BlackPhlox".to_string(),
+            issue_type: IssueType::Issue
+        }
+    );
+}
+
+#[test]
+fn parse_bevy_pr() {
+    let a = parse_issue_link("bevy#123");
+    assert_eq!(
+        a.expect("Not Found"),
+        Issue {
+            id: 123,
+            repo: Repo::Bevy,
+            author: "cart".to_string(),
+            issue_type: IssueType::PR
+        }
+    );
+}
+
+#[test]
+fn parse_bevy_discussion() {
     let a = parse_issue_link("bot#123");
     assert_eq!(
         a.expect("Not Found"),
@@ -142,7 +191,7 @@ fn parse_bevy_bot_issue() {
             id: 123,
             repo: Repo::BevyBot,
             author: "cart".to_string(),
-            issue_type: IssueType::Issue
+            issue_type: IssueType::Discussion
         }
     );
 }
@@ -152,15 +201,19 @@ pub async fn link(ctx: &Context, msg: &Message) -> CommandResult {
     info!("Checking for link regex!");
 
     let res = match_link_code_storage(&msg.content);
-    let lcs = match res {
-        Some(ref x) => match x {
+
+    if let Some(r) = res {
+        let lcs = match r {
             CodeLinkType::GitHub => "GH",
             CodeLinkType::GitHubGist => "GHG",
             CodeLinkType::GitLab => "GL",
             CodeLinkType::BitBucket => "BB",
-        },
-        None => "",
-    };
+        };
+
+        msg.channel_id
+            .say(&ctx.http, format!("Bonjour {}", lcs))
+            .await?;
+    }
 
     let res1 = parse_issue_link(&msg.content);
     match res1 {
@@ -183,12 +236,6 @@ pub async fn link(ctx: &Context, msg: &Message) -> CommandResult {
             issue_type: IssueType::Discussion,
         }) => info!("Found a Discussion {} in {:#?} by {}", id, repo, author),
         None => (),
-    }
-
-    if res.is_some() {
-        msg.channel_id
-            .say(&ctx.http, format!("Bonjour {}", lcs))
-            .await?;
     }
 
     Ok(())
