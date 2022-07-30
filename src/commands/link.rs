@@ -40,9 +40,22 @@ fn match_link_code_storage(text: &str) -> Option<CodeLinkType> {
 
 #[test]
 fn parse_gh_link() {
-    let a =
-        match_link_code_storage("https://github.com/rust-lang/regex/blob/master/PERFORMANCE.md");
-    assert_eq!(a.expect("Not Found"), CodeLinkType::GitHub);
+    assert_eq!(match_link_code_storage("https://github.com/rust-lang/regex/blob/master/PERFORMANCE.md"), Some(CodeLinkType::GitHub));
+}
+
+#[test]
+fn parse_gh_gist_link() {
+    assert_eq!(match_link_code_storage("https://gist.github.com/BlackPhlox/ed97c5a6b3793ec3f43d59e65acd54b8"), Some(CodeLinkType::GitHubGist));
+}
+
+#[test]
+fn parse_gitlab_link() {
+    assert_eq!(match_link_code_storage("https://gitlab.com/vismut-org/vismut"), Some(CodeLinkType::GitLab));
+}
+
+#[test]
+fn parse_bitbucket_link() {
+    assert_eq!(match_link_code_storage("https://bitbucket.org/atlassian/pipelines-examples-rust"), Some(CodeLinkType::BitBucket));
 }
 
 #[derive(PartialEq, Eq, Debug)]
