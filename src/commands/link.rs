@@ -65,134 +65,145 @@ pub enum Repo {
     Bevy,
     BevyBot,
     BevyWeb,
-    Other(Option<String>), //Username/Repo
+    Other(String), //Username/Repo
 }
 
+#[allow(clippy::manual_map)]
 fn parse_issue_link(text: &str) -> Option<Issue> {
     lazy_static! {
-        // From https://github.com/laundmo/gh-linker-bot/blob/main/gh_linker/cogs/code_snippets.py
-        // TODO: Find out what multiline compile means
+        // See definition in https://github.com/BlackPhlox/bevy-bot/issues/9
         static ref GH_ISSUE_RE: Regex = Regex::new(r#"((?P<Username>\w+)*/)?(?P<IsUser>@)?(?P<Repo>[^\s]+)#(?P<Id>\d*)"#).unwrap();
     }
 
     let captures = GH_ISSUE_RE.captures(text);
-    println!("Captured Test: {:?}", captures);
 
     if let Some(x) = captures {
+        let is_user = &x.name("IsUser");
+        if is_user.is_some() {
+            return None;
+        }
+
         let id = &x.name("Id");
         let repo = &x.name("Repo");
         let username = &x.name("Username");
-        let isUser = &x.name("IsUser");
 
-        if let (Some(_id), Some(_repo)) = (id, repo) {
-            let r: Repo = match _repo.as_str() {
-                "bevy" | "b" => Repo::Bevy,
-                "bevy-website" | "website" | "web" => Repo::BevyWeb,
-                "bevy-bot" | "bot" => Repo::BevyBot,
-                _ =>
-                //Github lookup first, if exist some else none
-                {
-                    Repo::Other(Some(_repo.as_str().to_string()))
+        if let (Some(_id), Some(_repo), user) = (id, repo, username) {
+            let r: Option<Repo> = match _repo.as_str() {
+                "bevy" | "b" => Some(Repo::Bevy),
+                "bevy-website" | "website" | "web" => Some(Repo::BevyWeb),
+                "bevy-bot" | "bot" => Some(Repo::BevyBot),
+                _ => {
+                    if let Some(_user) = user {
+                        //Github lookup first, if exist user and repo exist return some else none
+                        Some(Repo::Other(_repo.as_str().to_string()))
+                    } else {
+                        None
+                    }
                 }
             };
 
-            //Call github repo api
-            Some(Issue {
-                id: _id.as_str().to_string().parse::<u64>().expect("Invalid id"),
-                repo: r,
-                //From github
-                author: "cart".to_string(),
-                issue_type: IssueType::Issue,
-            })
-        } else {
-            None
+            if let Some(r) = r {
+                //Call github repo api
+                let i_type = match r {
+                    Repo::Bevy => IssueType::Issue,
+                    Repo::BevyBot => IssueType::PR,
+                    Repo::BevyWeb => IssueType::Discussion,
+                    Repo::Other(_) => IssueType::Issue,
+                };
+                println!("Type {:?}", i_type);
+                return Some(Issue {
+                    id: _id.as_str().to_string().parse::<u64>().expect("Invalid id"),
+                    repo: r,
+                    //From github
+                    author: "cart".to_string(),
+                    issue_type: IssueType::Issue,
+                });
+            }
         }
-    } else {
-        None
     }
+    None
 }
 
 #[test]
 fn parse_bevy_issue() {
-    let a = parse_issue_link("bevy#123");
     assert_eq!(
-        a.expect("Not Found"),
-        Issue {
+        parse_issue_link("bevy#123"),
+        Some(Issue {
             id: 123,
             repo: Repo::Bevy,
             author: "cart".to_string(),
             issue_type: IssueType::Issue
-        }
+        })
     );
 }
 
 #[test]
+fn parse_false_positive_fails() {
+    assert_eq!(parse_issue_link("@bevy#1234"), None);
+}
+
+#[test]
 fn parse_issue_fallback() {
-    let a = parse_issue_link("BlackPhlox/bevy_config_cam#1");
     assert_eq!(
-        a.expect("Not Found"),
-        Issue {
+        parse_issue_link("BlackPhlox/bevy_config_cam#1"),
+        Some(Issue {
             id: 1,
-            repo: Repo::Other(Some("bevy_config_cam".to_string())),
+            repo: Repo::Other("bevy_config_cam".to_string()),
             author: "BlackPhlox".to_string(),
             issue_type: IssueType::Issue
-        }
+        })
     );
 }
 
 #[test]
 fn parse_bevy_web_issue() {
-    let a = parse_issue_link("web#123");
     assert_eq!(
-        a.expect("Not Found"),
-        Issue {
+        parse_issue_link("web#123"),
+        Some(Issue {
             id: 123,
             repo: Repo::BevyWeb,
             author: "cart".to_string(),
             issue_type: IssueType::Issue
-        }
+        })
     );
 }
 
 #[test]
 fn parse_bevy_bot_issue() {
-    let a = parse_issue_link("bot#9");
     assert_eq!(
-        a.expect("Not Found"),
-        Issue {
+        parse_issue_link("bot#9"),
+        Some(Issue {
             id: 9,
             repo: Repo::BevyBot,
             author: "BlackPhlox".to_string(),
             issue_type: IssueType::Issue
-        }
+        })
     );
 }
 
 #[test]
 fn parse_bevy_pr() {
-    let a = parse_issue_link("bevy#123");
     assert_eq!(
-        a.expect("Not Found"),
-        Issue {
+        parse_issue_link("bevy#123"),
+        Some(Issue {
             id: 123,
             repo: Repo::Bevy,
             author: "cart".to_string(),
             issue_type: IssueType::PR
-        }
+        })
     );
 }
 
 #[test]
 fn parse_bevy_discussion() {
-    let a = parse_issue_link("bot#123");
     assert_eq!(
-        a.expect("Not Found"),
-        Issue {
+        parse_issue_link("bot#123"),
+        Some(Issue {
             id: 123,
             repo: Repo::BevyBot,
             author: "cart".to_string(),
             issue_type: IssueType::Discussion
-        }
+        })
     );
 }
 
@@ -213,29 +224,33 @@ pub async fn link(ctx: &Context, msg: &Message) -> CommandResult {
         msg.channel_id
             .say(&ctx.http, format!("Bonjour {}", lcs))
             .await?;
+
+        return Ok(());
     }
 
-    let res1 = parse_issue_link(&msg.content);
-    match res1 {
-        Some(Issue {
-            id,
-            repo,
-            author,
-            issue_type: IssueType::Issue,
-        }) => info!("Found an issue {} in {:#?} by {}", id, repo, author),
-        Some(Issue {
-            id,
-            repo,
-            author,
-            issue_type: IssueType::PR,
-        }) => info!("Found a pull-request {} in {:#?} by {}", id, repo, author),
-        Some(Issue {
-            id,
-            repo,
-            author,
-            issue_type: IssueType::Discussion,
-        }) => info!("Found a Discussion {} in {:#?} by {}", id, repo, author),
-        None => (),
+    if let Some(r) = parse_issue_link(&msg.content) {
+        match r {
+            Issue {
+                id,
+                repo,
+                author,
+                issue_type: IssueType::Issue,
+            } => info!("Found an issue {} in {:#?} by {}", id, repo, author),
+            Issue {
+                id,
+                repo,
+                author,
+                issue_type: IssueType::PR,
+            } => info!("Found a pull-request {} in {:#?} by {}", id, repo, author),
+            Issue {
+                id,
+                repo,
+                author,
+                issue_type: IssueType::Discussion,
+            } => info!("Found a Discussion {} in {:#?} by {}", id, repo, author),
+        }
+
+        return Ok(());
     }
 
     Ok(())
